@@ -86,7 +86,6 @@ class Series(NDBase, pd.Series):
 class DataFrame(NDBase, pd.DataFrame):
     '''
     Trait supporting analogue of :class:`~pandas.DataFrame`.
-
     Note:
         Columns, indices, etc. are only enforced if the dataframe has non-zero
         length.
