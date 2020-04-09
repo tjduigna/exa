@@ -121,6 +121,21 @@ def test_data_cardinal(data):
         data.cardinal = 'c'
     data.indexes = []
 
+def test_data_unset_categories(data):
+    d = exa.Data(categories={'a': str})
+    df = d.data(df=pd.DataFrame.from_dict({
+        'a': ['a', 'a', 'a', 'a', 'b', 'b', 'b'],
+        'b': [0, 1, 2, 3, 4, 5, 6]
+    }))
+    assert df.dtypes.a == 'category'
+    assert df.dtypes.b == int
+    with d.unset_categories() as df:
+        assert df.dtypes.a == object
+        assert df.dtypes.b == int
+    df = d.data()
+    assert df.dtypes.a == 'category'
+    assert df.dtypes.b == int
+
 @pyar
 def test_data_save(isotopes, tmpdir):
     d = tmpdir.mkdir('test_data_save')

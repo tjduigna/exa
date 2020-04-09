@@ -8,6 +8,7 @@ import yaml
 import importlib
 from copy import deepcopy
 from pathlib import Path
+from contextlib import contextmanager
 
 from traitlets import List, Unicode, Dict, Any
 from traitlets import validate, observe
@@ -34,6 +35,13 @@ class Data(exa.Base):
     columns = List(help="columns that must be present in the dataset")
     # TODO : generalize to dtypes to allow pre-defined type-casting
     categories = Dict()
+
+    def __repr__(self):
+        r = self.name
+        df = self.data()
+        if hasattr(df, 'shape'):
+            r += repr(df.shape)
+        return r
 
     def slice(self, key):
         """Provide a programmatic way to slice contained
@@ -162,17 +170,22 @@ class Data(exa.Base):
 
     @classmethod
     def from_tarball(cls, yml=None, qet=None):
-        """Load a Data that was packed inside a Container tarball"""
+        """Load a Data that was packed inside a Container tarball."""
         yml = cls._from_yml(yml)
         df = None
         if qet is not None:
             df = pd.read_parquet(qet)
         return cls(df=df, **yml)
 
-    def load(self, name=None, directory=None, tarbuffer=False):
+    def load(self, yml=None, qet=None, name=None, directory=None):
         """Load a saved Data from its stored metadata yaml
         and parquet data file."""
         # TODO : should name set self.name? same for save?
+        # It should be possible to save the "loader" method in the yml file.
+        # Perhaps a different trait than source so it doesn't overwrite
+        # original state. Then instantiate the Data and use its own API to
+        # enable lazy file loading of the saved parquet file.
+        # And even generalize to supported pandas formats..
         name = name or self.name
         directory = Path(directory) or exa.cfg.savedir
         self.log.info(f"loading {directory / name}")
@@ -188,6 +201,8 @@ class Data(exa.Base):
             )
         else:
             self.log.warn(f"{directory / name}.qet does not exist")
+        # for subclasses? is anything else needed
+        return directory
 
     def save(self, name=None, directory=None):
         """Save the housed dataframe as a parquet file and related
@@ -210,6 +225,25 @@ class Data(exa.Base):
             yaml.dump(save, f, default_flow_style=False)
         if data is not None:
             self.data(df=data)
+        return adir
+
+    @contextmanager
+    def unset_categories(self):
+        """Provide a context to access the data with
+        its default types rather than with categories.
+
+        Yields:
+            self.data()
+        """
+        df = self.data()
+        if isinstance(df, pd.DataFrame):
+            df = self._set_categories(df, reverse=True)
+        try:
+            yield df
+        finally:
+            self.data(df=self._set_categories(df))
+
+
 
     def _set_categories(self, df, reverse=False):
         """For specified categorical fields,
@@ -268,4 +302,13 @@ Units = Data(source=load_units, name='units')
 
 
 class Field(Data):
-    field_values = List()
+    field_values = List(help="list of 1D arrays")
+
+    def load(self, name=None, directory=None):
+        directory = super().load(name=name, directory=directory)
+        # load field values from individual parquet files? seems messy
+
+    def save(self, name=None, directory=None):
+        directory = super().load(name=name, directory=directory)
+        # save field values to individual parquet files? seems messy
+
